@@ -1,0 +1,57 @@
+package auth_jwt
+
+import (
+	"errors"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/dgrijalva/jwt-go"
+	_ "github.com/go-sql-driver/mysql"
+)
+
+type AuthJWT struct {
+	SecretKey string
+}
+
+func (x AuthJWT) GenerateJWT(email string) string {
+	var mySigningKey = []byte("thisismysecretkey")
+	token := jwt.New(jwt.SigningMethodHS256)
+	claims := token.Claims.(jwt.MapClaims)
+
+	claims["authorized"] = true
+	claims["email"] = email
+	claims["exp"] = time.Now().Add(time.Hour * 24).Unix()
+
+	tokenString, err := token.SignedString(mySigningKey)
+
+	if err != nil {
+		return ""
+	}
+	return tokenString
+}
+
+func (x AuthJWT) IsAuthorized(r *http.Request) bool {
+
+	authorization := r.Header.Get("Authorization")
+	if authorization == "" {
+		return false
+	}
+
+	parts := strings.SplitN(authorization, " ", 2)
+	if parts[0] != "Bearer" {
+		return false
+	}
+
+	var mySigningKey = []byte("thisismysecretkey")
+
+	token, err := jwt.Parse(parts[1], func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("could not open")
+		}
+		return mySigningKey, nil
+	})
+	_ = token
+
+	return err == nil
+}
