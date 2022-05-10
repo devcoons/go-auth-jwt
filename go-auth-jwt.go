@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
+	"github.com/gin-gonic/gin"
 	"github.com/dgrijalva/jwt-go"
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -14,8 +14,16 @@ type AuthJWT struct {
 	SecretKey string
 }
 
+func ApiMiddleware(authjwt auth_jwt.AuthJWT) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("middleware_auth", authjwt)
+		c.Next()
+	}
+}
+
+
 func (x AuthJWT) GenerateJWT(email string) string {
-	var mySigningKey = []byte("thisismysecretkey")
+	var mySigningKey = []byte(x.SecretKey)
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 
@@ -43,7 +51,7 @@ func (x AuthJWT) IsAuthorized(r *http.Request) bool {
 		return false
 	}
 
-	var mySigningKey = []byte("thisismysecretkey")
+	var mySigningKey = []byte(x.SecretKey)
 
 	token, err := jwt.Parse(parts[1], func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
