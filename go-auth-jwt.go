@@ -5,31 +5,32 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"github.com/gin-gonic/gin"
+
 	"github.com/dgrijalva/jwt-go"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/gin-gonic/gin"
 )
 
 type AuthJWT struct {
 	SecretKey string
+	TokenDuration time.Duration
 }
 
-func ApiMiddleware(authjwt auth_jwt.AuthJWT) gin.HandlerFunc {
+func ApiMiddleware(j AuthJWT) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Set("middleware_auth", authjwt)
+		c.Set("middleware_auth", j)
 		c.Next()
 	}
 }
 
-
-func (x AuthJWT) GenerateJWT(email string) string {
+func (x AuthJWT) GenerateJWT(email string, role string,) string {
 	var mySigningKey = []byte(x.SecretKey)
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 
 	claims["authorized"] = true
 	claims["email"] = email
-	claims["exp"] = time.Now().Add(time.Hour * 24).Unix()
+	claims["role"] = role
+	claims["exp"] = time.Now().Add(x.TokenDuration).Unix()
 
 	tokenString, err := token.SignedString(mySigningKey)
 
