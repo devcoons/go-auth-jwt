@@ -3,6 +3,7 @@ package auth_jwt
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,16 +51,16 @@ func (x *AuthJWT) GenerateJWT(email string, role string) string {
 	return tokenString
 }
 
-func (x *AuthJWT) IsAuthorized(r *http.Request) (string, bool) {
+func (x *AuthJWT) IsAuthorized(r *http.Request) ([]string, bool) {
 
 	authorization := r.Header.Get("Authorization")
 	if authorization == "" {
-		return "", false
+		return nil, false
 	}
 
 	parts := strings.SplitN(authorization, " ", 2)
 	if parts[0] != "Bearer" {
-		return "", false
+		return nil, false
 	}
 
 	var mySigningKey = []byte(x.SecretKey)
@@ -72,7 +73,7 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) (string, bool) {
 	})
 
 	if err != nil {
-		return "", false
+		return nil, false
 	}
 
 	_ = token
@@ -89,13 +90,15 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) (string, bool) {
 				delete(x.invalidatedTokens, key)
 			}
 		}
+
 		if !ok {
-			return claims.Email, true
+			return []string{claims.Email, strconv.FormatBool(claims.Authorized), claims.Role}, true
 		}
-		return "", false
+
+		return nil, false
 
 	} else {
-		return "", false
+		return nil, false
 	}
 
 }
@@ -133,14 +136,17 @@ func (x *AuthJWT) InvalidateJWT(r *http.Request) bool {
 
 	_ = token
 	if claims, ok := token.Claims.(*userClaims); ok && token.Valid {
+
 		if x.invalidatedTokens == nil {
 			x.invalidatedTokens = make(map[string]time.Time)
 		}
+
 		_, ok := x.invalidatedTokens[parts[1]]
 		if ok {
 			return false
 		}
 		x.invalidatedTokens[parts[1]] = time.Unix(claims.ExpiresAt, 0)
 	}
+
 	return true
 }
