@@ -14,23 +14,23 @@ type userClaims struct {
 	Email      string `json:"email"`
 	Authorized bool   `json:"authorized"`
 	Role       string `json:"role"`
-
 	jwt.StandardClaims
 }
 
 type AuthJWT struct {
-	SecretKey     string
-	TokenDuration time.Duration
+	SecretKey         string
+	TokenDuration     time.Duration
+	invalidatedTokens map[string]time.Time
 }
 
-func ApiMiddleware(j AuthJWT) gin.HandlerFunc {
+func ApiMiddleware(j *AuthJWT) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("middleware_auth", j)
 		c.Next()
 	}
 }
 
-func (x AuthJWT) GenerateJWT(email string, role string) string {
+func (x *AuthJWT) GenerateJWT(email string, role string) string {
 	var mySigningKey = []byte(x.SecretKey)
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := &userClaims{}
@@ -50,7 +50,7 @@ func (x AuthJWT) GenerateJWT(email string, role string) string {
 	return tokenString
 }
 
-func (x AuthJWT) IsAuthorized(r *http.Request) (string, bool) {
+func (x *AuthJWT) IsAuthorized(r *http.Request) (string, bool) {
 
 	authorization := r.Header.Get("Authorization")
 	if authorization == "" {
@@ -77,10 +77,70 @@ func (x AuthJWT) IsAuthorized(r *http.Request) (string, bool) {
 
 	_ = token
 	if claims, ok := token.Claims.(*userClaims); ok && token.Valid {
-		return claims.Email, true
+
+		if x.invalidatedTokens == nil {
+			x.invalidatedTokens = make(map[string]time.Time)
+		}
+
+		_, ok := x.invalidatedTokens[parts[1]]
+
+		for key, val := range x.invalidatedTokens {
+			if time.Now().After(val) {
+				delete(x.invalidatedTokens, key)
+			}
+		}
+		if !ok {
+			return claims.Email, true
+		}
+		return "", false
 
 	} else {
 		return "", false
 	}
 
+}
+
+func (x *AuthJWT) InvalidateJWT(r *http.Request) bool {
+
+	for key, val := range x.invalidatedTokens {
+		if time.Now().After(val) {
+			delete(x.invalidatedTokens, key)
+		}
+	}
+
+	authorization := r.Header.Get("Authorization")
+	if authorization == "" {
+		return false
+	}
+
+	parts := strings.SplitN(authorization, " ", 2)
+	if parts[0] != "Bearer" {
+		return false
+	}
+
+	var mySigningKey = []byte(x.SecretKey)
+
+	token, err := jwt.ParseWithClaims(parts[1], &userClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("could not open")
+		}
+		return mySigningKey, nil
+	})
+
+	if err != nil {
+		return false
+	}
+
+	_ = token
+	if claims, ok := token.Claims.(*userClaims); ok && token.Valid {
+		if x.invalidatedTokens == nil {
+			x.invalidatedTokens = make(map[string]time.Time)
+		}
+		_, ok := x.invalidatedTokens[parts[1]]
+		if ok {
+			return false
+		}
+		x.invalidatedTokens[parts[1]] = time.Unix(claims.ExpiresAt, 0)
+	}
+	return true
 }
