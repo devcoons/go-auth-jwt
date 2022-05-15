@@ -12,7 +12,7 @@ import (
 )
 
 type userClaims struct {
-	UserId     int `json:"userId"`
+	UserId     int    `json:"userId"`
 	Username   string `json:"username"`
 	Authorized bool   `json:"authorized"`
 	Role       string `json:"role"`
@@ -32,7 +32,7 @@ func ApiMiddleware(j *AuthJWT) gin.HandlerFunc {
 	}
 }
 
-func (x *AuthJWT) GenerateJWT(userId int, username string,authorized bool, role string) string {
+func (x *AuthJWT) GenerateJWT(userId int, username string, authorized bool, role string) string {
 	var mySigningKey = []byte(x.SecretKey)
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := &userClaims{}
@@ -94,7 +94,7 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) ([]string, bool) {
 		}
 
 		if !ok {
-			return []string{claims.UserId, claims.Username, strconv.FormatBool(claims.Authorized), claims.Role}, true
+			return []string{strconv.Itoa(claims.UserId), claims.Username, strconv.FormatBool(claims.Authorized), claims.Role}, true
 		}
 
 		return nil, false
