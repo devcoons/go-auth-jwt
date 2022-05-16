@@ -11,7 +11,7 @@ import (
 )
 
 type jwtClaims struct {
-	Data string
+	Data interface{} `json:"data"`
 	jwt.StandardClaims
 }
 
@@ -28,7 +28,7 @@ func ApiMiddleware(name string, j *AuthJWT) gin.HandlerFunc {
 	}
 }
 
-func (x *AuthJWT) GenerateJWT(data string) string {
+func (x *AuthJWT) GenerateJWT(data interface{}) string {
 	var mySigningKey = []byte(x.SecretKey)
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := &jwtClaims{}
@@ -44,16 +44,16 @@ func (x *AuthJWT) GenerateJWT(data string) string {
 	return tokenString
 }
 
-func (x *AuthJWT) IsAuthorized(r *http.Request) (string, bool) {
+func (x *AuthJWT) IsAuthorized(r *http.Request) (interface{}, bool) {
 
 	authorization := r.Header.Get("Authorization")
 	if authorization == "" {
-		return "", false
+		return nil, false
 	}
 
 	parts := strings.SplitN(authorization, " ", 2)
 	if parts[0] != "Bearer" {
-		return "", false
+		return nil, false
 	}
 
 	var mySigningKey = []byte(x.SecretKey)
@@ -66,7 +66,7 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) (string, bool) {
 	})
 
 	if err != nil {
-		return "", false
+		return nil, false
 	}
 
 	_ = token
@@ -87,26 +87,26 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) (string, bool) {
 		if !ok {
 			tm := time.Unix(claims.ExpiresAt, 0)
 			if time.Now().UTC().After(tm) {
-				return "", false
+				return nil, false
 			}
 			return claims.Data, true
 		}
-		return "", false
+		return nil, false
 	} else {
-		return "", false
+		return nil, false
 	}
 }
 
-func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) (string, bool) {
+func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) (interface{}, bool) {
 
 	authorization := r.Header.Get("Authorization")
 	if authorization == "" {
-		return "", false
+		return nil, false
 	}
 
 	parts := strings.SplitN(authorization, " ", 2)
 	if parts[0] != "Bearer" {
-		return "", false
+		return nil, false
 	}
 
 	var mySigningKey = []byte(key)
@@ -117,7 +117,7 @@ func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) (string, bool
 		return mySigningKey, nil
 	})
 	if err != nil {
-		return "", false
+		return nil, false
 	}
 
 	_ = token
@@ -137,14 +137,14 @@ func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) (string, bool
 
 			tm := time.Unix(claims.ExpiresAt, 0)
 			if time.Now().UTC().After(tm) {
-				return "", false
+				return nil, false
 			}
 			return claims.Data, true
 		}
-		return "", false
+		return nil, false
 
 	} else {
-		return "", false
+		return nil, false
 	}
 }
 
@@ -192,6 +192,5 @@ func (x *AuthJWT) InvalidateJWT(r *http.Request) bool {
 		}
 		x.invalidatedTokens[parts[1]] = time.Unix(claims.ExpiresAt, 0)
 	}
-
 	return true
 }
