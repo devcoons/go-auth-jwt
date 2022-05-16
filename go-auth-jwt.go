@@ -85,21 +85,16 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) (interface{}, bool) {
 		}
 
 		if !ok {
-
-			tm := time.Unix(0, claims.ExpiresAt)
+			tm := time.Unix(claims.ExpiresAt,0)
 			if time.Now().UTC().After(tm) {
 				return nil, false
 			}
-
 			return claims.Data, true
 		}
-
 		return nil, false
-
 	} else {
 		return nil, false
 	}
-
 }
 
 func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) (interface{}, bool) {
@@ -140,11 +135,10 @@ func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) (interface{},
 		}
 		if !ok {
 
-			tm := time.Unix(0, claims.ExpiresAt)
+			tm := time.Unix(claims.ExpiresAt,0)
 			if time.Now().UTC().After(tm) {
 				return nil, false
 			}
-
 			return claims.Data, true
 		}
 		return nil, false
