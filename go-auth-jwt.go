@@ -3,7 +3,6 @@ package auth_jwt
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -11,11 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type userClaims struct {
-	UserId     int    `json:"userId"`
-	Username   string `json:"username"`
-	Authorized bool   `json:"authorized"`
-	Role       string `json:"role"`
+type jwtClaims struct {
+	Data interface{} `json:"data"`
 	jwt.StandardClaims
 }
 
@@ -32,19 +28,14 @@ func ApiMiddleware(name string, j *AuthJWT) gin.HandlerFunc {
 	}
 }
 
-func (x *AuthJWT) GenerateJWT(userId int, username string, authorized bool, role string) string {
+func (x *AuthJWT) GenerateJWT(data interface{}) string {
 	var mySigningKey = []byte(x.SecretKey)
 	token := jwt.New(jwt.SigningMethodHS256)
-	claims := &userClaims{}
+	claims := &jwtClaims{}
 
-	claims.UserId = userId
-	claims.Username = username
-	claims.Authorized = authorized
-	claims.Role = role
+	claims.Data = data
 	claims.ExpiresAt = time.Now().Add(x.TokenDuration).Unix()
-
 	token.Claims = claims
-
 	tokenString, err := token.SignedString(mySigningKey)
 
 	if err != nil {
@@ -53,7 +44,7 @@ func (x *AuthJWT) GenerateJWT(userId int, username string, authorized bool, role
 	return tokenString
 }
 
-func (x *AuthJWT) IsAuthorized(r *http.Request) ([]string, bool) {
+func (x *AuthJWT) IsAuthorized(r *http.Request) (interface{}, bool) {
 
 	authorization := r.Header.Get("Authorization")
 	if authorization == "" {
@@ -67,7 +58,7 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) ([]string, bool) {
 
 	var mySigningKey = []byte(x.SecretKey)
 
-	token, err := jwt.ParseWithClaims(parts[1], &userClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(parts[1], &jwtClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("could not open")
 		}
@@ -79,7 +70,7 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) ([]string, bool) {
 	}
 
 	_ = token
-	if claims, ok := token.Claims.(*userClaims); ok && token.Valid {
+	if claims, ok := token.Claims.(*jwtClaims); ok && token.Valid {
 
 		if x.invalidatedTokens == nil {
 			x.invalidatedTokens = make(map[string]time.Time)
@@ -94,7 +85,13 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) ([]string, bool) {
 		}
 
 		if !ok {
-			return []string{strconv.Itoa(claims.UserId), claims.Username, strconv.FormatBool(claims.Authorized), claims.Role}, true
+
+			tm := time.Unix(0, claims.ExpiresAt)
+			if time.Now().UTC().After(tm) {
+				return nil, false
+			}
+
+			return claims.Data, true
 		}
 
 		return nil, false
@@ -105,7 +102,7 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) ([]string, bool) {
 
 }
 
-func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) ([]string, bool) {
+func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) (interface{}, bool) {
 
 	authorization := r.Header.Get("Authorization")
 	if authorization == "" {
@@ -118,7 +115,7 @@ func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) ([]string, bo
 	}
 
 	var mySigningKey = []byte(key)
-	token, err := jwt.ParseWithClaims(parts[1], &userClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(parts[1], &jwtClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("could not open")
 		}
@@ -129,7 +126,7 @@ func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) ([]string, bo
 	}
 
 	_ = token
-	if claims, ok := token.Claims.(*userClaims); ok && token.Valid {
+	if claims, ok := token.Claims.(*jwtClaims); ok && token.Valid {
 
 		if x.invalidatedTokens == nil {
 			x.invalidatedTokens = make(map[string]time.Time)
@@ -142,7 +139,13 @@ func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) ([]string, bo
 			}
 		}
 		if !ok {
-			return []string{strconv.Itoa(claims.UserId), claims.Username, strconv.FormatBool(claims.Authorized), claims.Role}, true
+
+			tm := time.Unix(0, claims.ExpiresAt)
+			if time.Now().UTC().After(tm) {
+				return nil, false
+			}
+
+			return claims.Data, true
 		}
 		return nil, false
 
@@ -171,7 +174,7 @@ func (x *AuthJWT) InvalidateJWT(r *http.Request) bool {
 
 	var mySigningKey = []byte(x.SecretKey)
 
-	token, err := jwt.ParseWithClaims(parts[1], &userClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(parts[1], &jwtClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("could not open")
 		}
@@ -183,7 +186,7 @@ func (x *AuthJWT) InvalidateJWT(r *http.Request) bool {
 	}
 
 	_ = token
-	if claims, ok := token.Claims.(*userClaims); ok && token.Valid {
+	if claims, ok := token.Claims.(*jwtClaims); ok && token.Valid {
 
 		if x.invalidatedTokens == nil {
 			x.invalidatedTokens = make(map[string]time.Time)
