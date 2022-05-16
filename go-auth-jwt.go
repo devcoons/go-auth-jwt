@@ -25,9 +25,9 @@ type AuthJWT struct {
 	invalidatedTokens map[string]time.Time
 }
 
-func ApiMiddleware(j *AuthJWT) gin.HandlerFunc {
+func ApiMiddleware(name string, j *AuthJWT) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Set("middleware_auth", j)
+		c.Set(name, j)
 		c.Next()
 	}
 }
