@@ -194,3 +194,36 @@ func (x *AuthJWT) InvalidateJWT(r *http.Request) bool {
 	}
 	return true
 }
+
+func (x *AuthJWT) InvalidateToken(utoken string) bool {
+	for key, val := range x.invalidatedTokens {
+		if time.Now().After(val) {
+			delete(x.invalidatedTokens, key)
+		}
+	}
+
+	var mySigningKey = []byte(x.SecretKey)
+	token, err := jwt.ParseWithClaims(utoken, &jwtClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("could not open")
+		}
+		return mySigningKey, nil
+	})
+
+	if err != nil {
+		return false
+	}
+
+	_ = token
+	if claims, ok := token.Claims.(*jwtClaims); ok && token.Valid {
+		if x.invalidatedTokens == nil {
+			x.invalidatedTokens = make(map[string]time.Time)
+		}
+		_, ok := x.invalidatedTokens[utoken]
+		if ok {
+			return false
+		}
+		x.invalidatedTokens[utoken] = time.Unix(claims.ExpiresAt, 0)
+	}
+	return true
+}
