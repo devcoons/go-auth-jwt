@@ -97,6 +97,48 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) (interface{}, bool) {
 	}
 }
 
+func (x *AuthJWT) IsAuthorizedToken(stoken string) (interface{}, bool) {
+
+	var mySigningKey = []byte(x.SecretKey)
+
+	token, err := jwt.ParseWithClaims(stoken, &jwtClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("could not open")
+		}
+		return mySigningKey, nil
+	})
+
+	if err != nil {
+		return nil, false
+	}
+
+	_ = token
+	if claims, ok := token.Claims.(*jwtClaims); ok && token.Valid {
+
+		if x.invalidatedTokens == nil {
+			x.invalidatedTokens = make(map[string]time.Time)
+		}
+
+		_, ok := x.invalidatedTokens[stoken]
+
+		for key, val := range x.invalidatedTokens {
+			if time.Now().After(val) {
+				delete(x.invalidatedTokens, key)
+			}
+		}
+
+		if !ok {
+			tm := time.Unix(claims.ExpiresAt, 0)
+			if time.Now().UTC().After(tm) {
+				return nil, false
+			}
+			return claims.Data, true
+		}
+		return nil, false
+	} else {
+		return nil, false
+	}
+}
 func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) (interface{}, bool) {
 
 	authorization := r.Header.Get("Authorization")
