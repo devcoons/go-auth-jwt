@@ -19,6 +19,7 @@ type AuthJWT struct {
 	SecretKey         string
 	TokenDuration     time.Duration
 	invalidatedTokens map[string]time.Time
+	AuthType	  string
 }
 
 func ApiMiddleware(name string, j *AuthJWT) gin.HandlerFunc {
@@ -52,7 +53,7 @@ func (x *AuthJWT) IsAuthorized(r *http.Request) (interface{}, bool) {
 	}
 
 	parts := strings.SplitN(authorization, " ", 2)
-	if parts[0] != "Bearer" {
+	if parts[0] != x.AuthType {
 		return nil, false
 	}
 
@@ -147,7 +148,7 @@ func (x *AuthJWT) IsAuthorizedWithKey(r *http.Request, key string) (interface{},
 	}
 
 	parts := strings.SplitN(authorization, " ", 2)
-	if parts[0] != "Bearer" {
+	if parts[0] != x.AuthType {
 		return nil, false
 	}
 
@@ -204,7 +205,7 @@ func (x *AuthJWT) InvalidateJWT(r *http.Request) bool {
 	}
 
 	parts := strings.SplitN(authorization, " ", 2)
-	if parts[0] != "Bearer" {
+	if parts[0] != x.AuthType {
 		return false
 	}
 
